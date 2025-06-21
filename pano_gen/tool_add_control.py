@@ -13,9 +13,9 @@ def get_node_name(name, parent_name):
 
 if __name__ == '__main__':
     input_path = './models/v1-5-pruned.ckpt'
-    output_path = 'models/control_sd15_clip_hdr_share.ckpt'
+    output_path = 'models/control_sd15_clip_asg_sg.ckpt'
 
-    model = create_model(config_path='./models/cldm_v15_clip_hdr_share.yaml')
+    model = create_model(config_path='./configs/cldm_v15_clip_asg_sg.yaml')
 
     pretrained_weights = torch.load(input_path)
     if 'state_dict' in pretrained_weights:

@@ -1,4 +1,6 @@
-import os
+import os,sys
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, root)
 import torch
 
 from omegaconf import OmegaConf

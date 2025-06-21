@@ -22,7 +22,8 @@ from ldm.models.diffusion.ddim import DDIMSampler
 
 
 class ControlledUnetModel(UNetModel):
-    def forward(self, x, timesteps=None, context=None, control=None, control_hdr=None, only_mid_control=False):
+    def forward(self, x, timesteps=None, context=None, control=None, control_hdr=None, only_mid_control=False,
+                **kwargs):
         hs = []
         with torch.no_grad():
             t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
@@ -33,33 +34,9 @@ class ControlledUnetModel(UNetModel):
                 hs.append(h)
             h = self.middle_block(h, emb, context)
 
-        if control is not None:
-            h += control.pop()
-        if control_hdr is None:
-            print(control[0].max().item(), control[0].min().item(), control[-1].max().item(), control[-1].min().item())
-        elif isinstance(control_hdr, list):
-            if len(control) < len(control_hdr):
-                h += control_hdr.pop()
-        else:
-            print(control_hdr.max().item(), control_hdr.min().item())
+        h = h + control.pop() + 0.1 * control_hdr.pop()
         for i, module in enumerate(self.output_blocks):
-            if control_hdr is not None and not isinstance(control_hdr, list):
-                if h.shape == control_hdr.shape:
-                    h = h + control_hdr
-            if only_mid_control or control is None:
-                h = torch.cat([h, hs.pop()], dim=1)
-            elif isinstance(control_hdr, list):
-                cr = torch.rand(1)
-                if cr < 1 / 3:
-                    h = torch.cat([h, hs.pop() + control_hdr.pop() + control.pop()], dim=1)
-                elif cr < 2 / 3:
-                    h = torch.cat([h, hs.pop() + control_hdr.pop()], dim=1)
-                    control.pop()
-                else:
-                    h = torch.cat([h, hs.pop() + control.pop()], dim=1)
-                    control_hdr.pop()
-            else:
-                h = torch.cat([h, hs.pop() + control.pop()], dim=1)
+            h = torch.cat([h, hs.pop() + 0.1 * control_hdr.pop() + control.pop()], dim=1)
             h = module(h, emb, context)
 
         h = h.type(x.dtype)
@@ -231,6 +208,7 @@ class ControlNet(nn.Module):
                         num_heads = ch // num_head_channels
                         dim_head = num_head_channels
                     if legacy:
+                        # num_heads = 1
                         dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
                     if exists(disable_self_attentions):
                         disabled_sa = disable_self_attentions[level]
@@ -289,6 +267,7 @@ class ControlNet(nn.Module):
             num_heads = ch // num_head_channels
             dim_head = num_head_channels
         if legacy:
+            # num_heads = 1
             dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
         self.middle_block = TimestepEmbedSequential(
             ResBlock(
@@ -426,7 +405,8 @@ class ControlLDM(LatentDiffusion):
 
             control = [c * scale for c, scale in zip(control, self.control_scales)]
             if self.control_hdr_model and control_hdr is None:
-                control_hdr = self.control_hdr_model(x=x_noisy, hint=torch.cat(cond['c_hdr'], 1), timesteps=t, context=cond_txt)
+                control_hdr = self.control_hdr_model(x=x_noisy, hint=torch.cat(cond['c_hdr'], 1), timesteps=t,
+                                                     context=cond_txt)
 
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=control, control_hdr=control_hdr,
                                   only_mid_control=self.only_mid_control)  # b, 4, 32, 64
@@ -438,22 +418,29 @@ class ControlLDM(LatentDiffusion):
         return self.get_learned_conditioning([""] * N)
 
     @torch.no_grad()
-    def log_images(self, batch, N=4, n_row=2, sample=True, ddim_steps=50, ddim_eta=0.0, plot_denoise_rows=False, plot_diffusion_rows=False):
+    def log_images(self, batch, N=4, n_row=2, sample=True, ddim_steps=50, ddim_eta=0.0, return_keys=None,
+                   quantize_denoised=True, inpaint=False, plot_denoise_rows=False, plot_progressive_rows=False,
+                   plot_diffusion_rows=False, unconditional_guidance_scale=9.0, unconditional_guidance_label=None,
+                   use_ema_scope=True,
+                   **kwargs):
         use_ddim = ddim_steps is not None
 
         log = dict()
         z, c = self.get_input(batch, self.first_stage_key, bs=N)
         if c["c_hdr"][0] is None:
             c_hdr = None
+            log_control_hdr = None
         else:
             c_hdr = c["c_hdr"][0][:N]
+            # log["control_hdr"] = c_hdr
             log_control_hdr = c_hdr.repeat(1, 3, 1, 1)
         c_cat, c = c["c_concat"][0][:N], c["c_crossattn"][0][:N]
         N = min(z.shape[0], N)
         n_row = min(z.shape[0], n_row)
-        log_reconstruction = self.decode_first_stage(z)
-        log_control = c_cat
-        log_conditioning = F.interpolate(batch[self.cond_stage_key], size=c_cat.shape[-2:], mode='bilinear')
+        log_reconstruction = self.decode_first_stage(z[:N])
+        log_control = c_cat[:, :-1] if c_cat.shape[1] == 4 else c_cat
+
+        log_conditioning = F.interpolate(batch[self.cond_stage_key][:N], size=c_cat.shape[-2:], mode='bilinear')
 
         if plot_diffusion_rows:
             # get diffusion row
@@ -476,14 +463,18 @@ class ControlLDM(LatentDiffusion):
         if sample:
             # get denoise row
             samples, z_denoise_row = self.sample_log(cond={"c_concat": [c_cat], "c_crossattn": [c], "c_hdr": [c_hdr]},
-                                                     batch_size=N, ddim=use_ddim, ddim_steps=ddim_steps, eta=ddim_eta)
+                                                     batch_size=N, ddim=use_ddim,
+                                                     ddim_steps=ddim_steps, eta=ddim_eta)
             x_samples = self.decode_first_stage(samples)
             log_samples = x_samples
             if plot_denoise_rows:
                 denoise_grid = self._get_denoise_row_from_list(z_denoise_row)
                 log["denoise_row"] = denoise_grid
+        else:
+            log_samples = None
 
-        log["samples"] = torch.cat((log_conditioning, log_control, log_control_hdr, log_samples, log_reconstruction), dim=-2)
+        log["samples"] = torch.cat((log_conditioning, log_control, log_control_hdr, log_samples, log_reconstruction),
+                                   dim=-2)
         return log
 
     @torch.no_grad()
@@ -494,10 +485,20 @@ class ControlLDM(LatentDiffusion):
         samples, intermediates = ddim_sampler.sample(ddim_steps, batch_size, shape, cond, verbose=False, **kwargs)
         return samples, intermediates
 
+    def on_fit_start(self):
+        for p in self.parameters():
+            p.requires_grad = False
+        for p in self.control_model.parameters():
+            p.requires_grad = True
+        for p in self.model.diffusion_model.output_blocks.parameters():
+            p.requires_grad = True
+        for p in self.model.diffusion_model.out.parameters():
+            p.requires_grad = True
+
+
     def configure_optimizers(self):
         lr = self.learning_rate
         params = list(self.control_model.parameters())
-        if self.control_hdr_model is not None: params += list(self.control_hdr_model.parameters())
         if not self.sd_locked:
             params += list(self.model.diffusion_model.output_blocks.parameters())
             params += list(self.model.diffusion_model.out.parameters())
@@ -508,12 +509,14 @@ class ControlLDM(LatentDiffusion):
         if is_diffusing:
             self.model = self.model.cuda()
             self.control_model = self.control_model.cuda()
-            if self.control_hdr_model is not None: self.control_hdr_model = self.control_hdr_model.cuda()
+            if self.control_hdr_model is not None:
+                self.control_hdr_model = self.control_hdr_model.cuda()
             self.first_stage_model = self.first_stage_model.cpu()
             self.cond_stage_model = self.cond_stage_model.cpu()
         else:
             self.model = self.model.cpu()
             self.control_model = self.control_model.cpu()
-            if self.control_hdr_model is not None: self.control_hdr_model = self.control_hdr_model.cpu()
+            if self.control_hdr_model is not None:
+                self.control_hdr_model = self.control_hdr_model.cpu()
             self.first_stage_model = self.first_stage_model.cuda()
             self.cond_stage_model = self.cond_stage_model.cuda()

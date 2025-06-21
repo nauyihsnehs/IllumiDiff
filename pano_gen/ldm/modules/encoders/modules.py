@@ -1,9 +1,10 @@
 import torch.nn as nn
 
 from transformers import CLIPProcessor, CLIPVisionModel
+from transformers import logging as hf_logging
 
 
-def disabled_train(self):
+def disabled_train(self, mode=True):
     """Overwrite model.train with this function to make sure train/eval mode
     does not change anymore."""
     return self
@@ -34,12 +35,15 @@ class FrozenCLIPEmbedder(nn.Module):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
     LAYERS = ["last", "pooled", "hidden"]
 
-    def __init__(self, version="openai/clip-vit-base-patch32", device="cuda", max_length=77, freeze=True, layer="last", layer_idx=None):
+    def __init__(self, version="openai/clip-vit-base-patch32", device="cuda", max_length=77,
+                 # def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77,
+                 freeze=True, layer="last", layer_idx=None):  # todo clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
         self.processor = CLIPProcessor.from_pretrained(version, ignore_mismatched_sizes=True, do_resize=False,
                                                        do_center_crop=False, do_convert_rgb=False, do_normalize=False,
                                                        do_rescale=False)
+        hf_logging.set_verbosity_error()
         self.vision = CLIPVisionModel.from_pretrained(version, ignore_mismatched_sizes=True)
         self.device = device
         self.max_length = max_length
@@ -57,8 +61,10 @@ class FrozenCLIPEmbedder(nn.Module):
             param.requires_grad = False
 
     def forward(self, img):
-        inputs = self.processor(images=[*img], return_tensors="pt", data_format='channels_first')  # [*img]
-        z = self.vision(**inputs).last_hidden_state
+        img_np = [i.cpu().numpy() for i in img]
+        inputs_cpu = self.processor(images=img_np, return_tensors="pt", data_format='channels_first')  # [*img]
+        inputs = inputs_cpu.data['pixel_values'].to(self.device)
+        z = self.vision(inputs).last_hidden_state
 
         return z
 
