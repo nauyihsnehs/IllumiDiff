@@ -336,7 +336,7 @@ class IDNetDataModule(BaseDataModule):
 
 
 class PipeDataset(Dataset):
-    def __init__(self, input_path, input_pano_path, resolution=(512, 256), task='stage3', is_full_pipe=False):
+    def __init__(self, input_path, input_pano_path=None, resolution=(512, 256), task='stage3', is_full_pipe=False):
         self.input_list = sorted(Path(input_path).glob('*.*'))
         self.input_pano_path = input_pano_path
         self.res = resolution
