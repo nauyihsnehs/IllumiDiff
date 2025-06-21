@@ -63,7 +63,7 @@ You can download them from [OneDrive](https://1drv.ms/f/s!AteITnyFLzOYj6x_vV0lu5
 
 Unzip `clip-vit-base-patch32.zip` to `IllumiDiff/pano_gen/openai/clip-vit-base-patch32/`,
 
-put all ckpts to `IllumDiff/ckpt/`,
+put all ckpts to `IllumDiff/ckpts/`,
 
 `control_sd15_clip_asg_sg.ckpt` is required solely for training from scratch.
 
