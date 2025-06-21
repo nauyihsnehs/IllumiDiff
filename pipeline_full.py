@@ -84,7 +84,6 @@ def run_sampler(
 @click.option('--asg_ckpt', type=str, default='./ckpts/asg-epoch=99-step=155000.ckpt')
 @click.option('--hdr_ckpt', type=str, default='./ckpts/hdr-epoch=49-step=28450.ckpt')
 @click.option('--input_path', type=str, default='inputs')
-@click.option('--input_pano_path', type=str, default='pano_ldr')
 @click.option('--output_path', type=str, default='pano_hdr')
 @click.option('--batch_size', type=int, default=16)
 @click.option('--pano_res', type=(int, int), default=(512, 256))
@@ -97,7 +96,7 @@ def run_sampler(
 @click.option('--eta', type=float, default=0.3)  # 0 ~ 1, higher for more diverse results
 @click.option('--is_outpainting', type=bool, default=True)  # True for keeping the input image area
 def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
-             input_path, input_pano_path, output_path, batch_size, pano_res, sg_scale,
+             input_path, output_path, batch_size, pano_res, sg_scale,
              ldm_config, ldm_ckpt, mask_path, ldm_batch, ddim_steps, eta, seed, is_outpainting):
     if seed >= 0: seed_everything(seed)
 
@@ -128,7 +127,7 @@ def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
     id_net_pano.eval() if id_net_pano else None
     hdr_net.eval() if hdr_net else None
 
-    dataset = PipeDataModule(batch_size=batch_size, input_path=input_path, input_pano_path=input_pano_path,
+    dataset = PipeDataModule(batch_size=batch_size, input_path=input_path,
                              resolution=pano_res, task=task, is_full_pipe=True)
     dataset.setup('predict')
     dataloader = dataset.predict_dataloader()
