@@ -1,0 +1,13 @@
+opencv-python
+pillow
+imageio
+imageio-ffmpeg
+omegaconf
+einops
+transformers==4.19.2
+open_clip_torch
+timm
+safetensors
+click
+tqdm
+scipy
