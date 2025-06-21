@@ -3,7 +3,8 @@
 [Shiyuan Shen](https://nauyihsnehs.github.io/), [Zhongyun Bao](https://www.ahpu.edu.cn/jsjyxxgc/2024/0829/c5472a228006/page.htm), [Wenju Xu](https://xuwenju123.github.io/), [Chunxia Xiao](https://graphvision.whu.edu.cn/)
 
 **[Paper](https://ieeexplore.ieee.org/document/10945728)** |
-**[PDF](https://graphvision.whu.edu.cn/paper/2025/ShenShiYuan_TVCG_2025.pdf)**
+**[PDF](https://graphvision.whu.edu.cn/paper/2025/ShenShiYuan_TVCG_2025.pdf)** |
+**[HomePage](https://graphvision.whu.edu.cn/)**
 
 #### Differences from the original paper
 
@@ -60,12 +61,18 @@ pip install -r requirements.txt
 
 You can download them from [OneDrive](https://1drv.ms/f/s!AteITnyFLzOYj6x_vV0lu5uhoTVjJQ?e=YJViCX).
 
+Unzip `clip-vit-base-patch32.zip` to `IllumiDiff/pano_gen/openai/clip-vit-base-patch32/`,
+
+put all ckpts to `IllumDiff/ckpt/`,
+
+`control_sd15_clip_asg_sg.ckpt` is required solely for training from scratch.
+
 ## Inference
 
-Full pipeline inference, the input is a single image:
+Full pipeline inference, the input is single images:
 
 ```bash
-python pipeline_full.py --input_path <path> --input_pano_path <path> --output_path <path>
+python pipeline_full.py --input_path <path> --output_path <path>
 ```
 
 Stage 1 or Stage 3 only:
@@ -90,7 +97,7 @@ python inference_pano_gen.py
 
 ## Dataset
 
-See more details in paper.
+See more details in the paper.
 
 ## Training
 
