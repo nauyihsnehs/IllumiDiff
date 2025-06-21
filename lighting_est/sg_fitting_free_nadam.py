@@ -1,12 +1,20 @@
 import os
+import pathlib
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-import pathlib
+
 import cv2 as cv
 import numpy as np
 import torch
 
-exr_save_params = [cv.IMWRITE_EXR_TYPE, cv.IMWRITE_EXR_TYPE_HALF, cv.IMWRITE_EXR_COMPRESSION, cv.IMWRITE_EXR_COMPRESSION_PIZ]
+exr_save_params = [cv.IMWRITE_EXR_TYPE, cv.IMWRITE_EXR_TYPE_HALF, cv.IMWRITE_EXR_COMPRESSION,
+                   cv.IMWRITE_EXR_COMPRESSION_PIZ]
+TINY = 1e-8
+
+file_path = '/mnt/data2/ssy/illumidiff_dataset/pano_hdr_128'
+save_path = 'results/sg_fitting'
+TINY_NUMBER = 1e-8
+SGNum = 12
 
 
 class SGEnvOptim:
@@ -66,7 +74,8 @@ class SGEnvOptim:
             loss = l2(panoImage, envmap)
             loss.backward()
             self.optEnv.step()
-            if torch.isnan(torch.sum(self.param)): return None
+            if torch.isnan(torch.sum(self.param)):
+                return None
             if (i + 1) > self.niter - 100:
                 if loss.item() < self.min_loss:
                     self.min_loss = loss.item()
@@ -96,7 +105,8 @@ def main(gpu_num, gpu_id):
         lum99 = np.percentile(lum, 99)
         lum99 = min(lum99, 10)
         pano_ori[lum < lum99] = 0
-        if pathlib.Path(f'{save_path}/{save_name}.exr').is_file(): continue
+        if pathlib.Path(f'{save_path}/{save_name}.exr').is_file():
+            continue
         sg = SGEnvOptim(envWidth=128, envHeight=64, SGNum=SGNum, niter=10000, lr=1e-1)
         try:
             rec_map, save_npy, loss = sg.optimize(envmap=pano_ori, name=save_name)
@@ -111,10 +121,6 @@ def main(gpu_num, gpu_id):
 
 if __name__ == '__main__':
     import sys
-
-    file_path = ''
-    save_path = ''
-    SGNum = 12
 
     main(int(sys.argv[1]), int(sys.argv[2]))
     # main(1, 0)

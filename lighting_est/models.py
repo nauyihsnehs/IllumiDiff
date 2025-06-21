@@ -5,8 +5,6 @@ from torchvision import models
 
 
 class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
-
     def __init__(self, in_channels, out_channels, mid_channels=None):
         super().__init__()
         if not mid_channels:
@@ -25,9 +23,7 @@ class DoubleConv(nn.Module):
 
 
 class SingleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
-
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
         self.single_conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
@@ -39,8 +35,6 @@ class SingleConv(nn.Module):
 
 
 class Down(nn.Module):
-    """Downscaling with maxpool then double conv"""
-
     def __init__(self, in_channels, out_channels, conv_num=2):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
@@ -53,11 +47,8 @@ class Down(nn.Module):
 
 
 class Up(nn.Module):
-    """Upscaling then double conv"""
-
     def __init__(self, in_channels, out_channels, bilinear=True, conv_num=2):
         super().__init__()
-
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2) if conv_num == 2 else SingleConv(in_channels, out_channels)
@@ -69,7 +60,6 @@ class Up(nn.Module):
         x1 = self.up(x1)
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
-
         x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
                         diffY // 2, diffY - diffY // 2])
         x = torch.cat([x2, x1], dim=1)
@@ -124,7 +114,7 @@ class SGNet(nn.Module):
 
         self.sg_num = sg_num
 
-        densenet = models.densenet161(pretrained=True)
+        densenet = models.densenet161(weights=models.DenseNet161_Weights.DEFAULT)
         self.encoder = densenet.features
 
         self.mask_processor = nn.Sequential(
@@ -156,7 +146,8 @@ class SGNet(nn.Module):
 
     def forward(self, x, mask):
         mask_features = self.mask_processor(mask)
-        x = self.encoder(x)  # [:,1:].reshape(1, -1, 8, 8)
+
+        x = self.encoder(x)
         mask_features = nn.functional.interpolate(mask_features, size=(x.shape[2], x.shape[3]), mode='bilinear', align_corners=False)
         x = torch.cat([x, mask_features], dim=1)
         x = self.decoder_conv(x)
@@ -164,21 +155,21 @@ class SGNet(nn.Module):
         out_p = self.head_p(x).view(x.size(0), self.sg_num, 3)
         out_p = out_p / out_p.norm(dim=-1, keepdim=True)
         out_la = self.head_la(x).view(x.size(0), self.sg_num, 1)
-        out_la = 1 / (torch.sigmoid(out_la) + 1e-5)
+        out_la = torch.abs(out_la)
         out_w = self.head_w(x).view(x.size(0), self.sg_num, 3)
-        out_w = 1 / (torch.sigmoid(out_w) + 1e-5)
+        out_w = torch.abs(out_w)
 
         return out_p, out_la, out_w
 
 
 class ASGNet(nn.Module):
-    def __init__(self, asg_num=128, num_heads=4, head_output_shapes=None):
+    def __init__(self, asg_num=128, head_output_shapes=None):
         super(ASGNet, self).__init__()
         self.asg_num = asg_num
 
         if head_output_shapes is None:
             self.head_output_shapes = [(asg_num, 1), (asg_num, 1), (asg_num, 1), (asg_num, 3)]
-        densenet = models.densenet161(pretrained=True)
+        densenet = models.densenet161(weights=models.DenseNet161_Weights.DEFAULT)
         self.encoder = nn.Sequential(*list(densenet.features.children()))
 
         self.decoder = nn.Sequential(
@@ -238,21 +229,21 @@ class HDRNet(nn.Module):
         self.up3 = (Up(256, 64))
         self.up4 = (Up(128, 64))
         self.outc = (OutConv(64, n_classes))
+
         self.sg_en = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=3, padding=1),
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
         )
         self.mask_en = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(inplace=True),
+            nn.Tanh(),
         )
 
     def forward(self, x, sg, mask):
@@ -272,4 +263,3 @@ class HDRNet(nn.Module):
         x = self.up4(x, x1)
         logits = torch.abs(self.outc(x))
         return logits
-

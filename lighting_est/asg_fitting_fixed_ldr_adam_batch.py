@@ -1,4 +1,4 @@
-import os
+import os, sys
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import math
@@ -30,7 +30,6 @@ class ASGDataset(Dataset):
 
     def __getitem__(self, idx):
         img = cv.imread(self.img_list[idx]) / 255.
-        # img = cv.imread(self.img_list[idx], cv.IMREAD_UNCHANGED)
         img = cv.resize(img, (self.w, self.h), interpolation=cv.INTER_AREA)
         img = cv.GaussianBlur(img, (11, 11), 5)
         img_name = self.img_list[idx].split('/')[-1][:-4]
@@ -154,11 +153,9 @@ class ASGEnvOptim:
                                            mu.cpu().detach().numpy(),
                                            w.cpu().detach().numpy()), axis=-1)
                 print(f'an: {an.mean().item()}, la: {la.mean().item()}, mu: {mu.mean().item()}, w: {w.mean().item()}')
+
         return rec_map, save_npy
 
-
-# 256 b8 38 4.7
-# 256 b16 75 4.7
 
 def main(gpu_num, gpu_id):
     asg_dataset = ASGDataset(file_path, W, gpu_num, gpu_id)
@@ -175,14 +172,13 @@ def main(gpu_num, gpu_id):
         asg_imgs = np.clip(asg_imgs, 0, 1) * 255
         for asg_img, save_npy, save_name in zip(asg_imgs, save_npys, save_names):
             np.save(f'{save_path}/{save_name}.npy', save_npy)
+            # todo upscale to 512
             cv.imwrite(f'{save_path}/{save_name}.jpg', asg_img)
 
 
 if __name__ == '__main__':
-    import sys
-
-    file_path = ''
-    save_path = ''
+    file_path = r'E:\HDROutdoor\pano_ldr_512'
+    save_path = r'E:\HDROutdoor\asg'
     W = 256
     batch_size = 2
     asg_num = 128
