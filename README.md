@@ -10,7 +10,7 @@
 
 1. Upgrade LDM to Stable Diffusion 1.5, use input image instead of text prompt.
 2. Replace Latent HDR Guidance with an equivalent substitution using ControlNet, with the aim of accelerating the fine-tuning process.
-3. Training epochs are changed to 40 for id_net, 50 for sg_net, 100 for asg_net, 50 for hdr_net, 4 for controlnet.
+3. Training epochs are changed to 40 for id_net, 50 for sg_net, 100 for asg_net, 50 for hdr_net, 5 for controlnet.
 
 ## Structure
 
