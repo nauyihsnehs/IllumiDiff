@@ -52,6 +52,7 @@ IllumiDiff/
 
 ```bash
 conda create -n illumidiff python=3.10
+conda activate illumidiff
 conda install pytorch==2.2.2 torchvision==0.17.2 pytorch-cuda=11.8 numpy=1.26.4 -c pytorch -c nvidia
 conda install lightning -c conda-forge
 pip install -r requirements.txt
