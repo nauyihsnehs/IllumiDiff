@@ -16,14 +16,14 @@ os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 @click.option('--gpus', default='1')
 @click.option('--ckpt_path', type=str, default='ckpts/control_sd15_clip_asg_sg.ckpt')
 @click.option('--data_root', type=str, default='/mnt/data1/ssy/ldr-inpainting/dataset')
-@click.option('--bs', type=int, default=4)
-@click.option('--lr', type=float, default=1e-5)
+@click.option('--bs', type=int, default=8)
+@click.option('--lr', type=float, default=1e-4)
 @click.option('--epochs', type=int, default=10)
 @click.option('--logger_freq', type=int, default=300)
 def main(gpus, ckpt_path, data_root, bs, lr, epochs, logger_freq):
     model = create_model('pano_gen/configs/cldm_v15_clip_asg_sg.yaml').cpu()
 
-    model.load_state_dict(load_state_dict(ckpt_path, location='cpu'))
+    model.load_state_dict(load_state_dict(ckpt_path, location='cpu'), strict=False)
 
     model.learning_rate = lr
     model.sd_locked = True
