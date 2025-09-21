@@ -26,22 +26,12 @@ from pano_gen.cldm.model import create_model, load_state_dict
 
 def run_sampler(
         model, input_pano, input_asg, input_sg, input_img,
-        img_name, output_path, input_mask=None,
-        batch=4, strength=1.0, ddim_steps=50, eta=0.3,
-        is_outpainting=True
+        img_name, output_path, batch=4, strength=1.0, ddim_steps=50, eta=0.3
 ):
     model = model.cuda()
     ddim_sampler = DDIMSampler(model)
 
-    if is_outpainting:
-        mask = torch.stack([input_mask for _ in range(batch)], dim=0)
-        mask = F.interpolate(mask, scale_factor=1 / 8, mode='bilinear', align_corners=False)
-    else:
-        mask = None
-
     C, H, W = input_pano.shape
-    x0 = input_pano.clone()
-    x0 = torch.stack([x0 for _ in range(batch)], dim=0)
 
     control = torch.stack([input_asg for _ in range(batch)], dim=0)
     control_hdr = torch.stack([input_sg for _ in range(batch)], dim=0)
@@ -52,18 +42,18 @@ def run_sampler(
 
     shape = (4, H // 8, W // 8)
     ddim_sampler.make_schedule(ddim_steps, ddim_eta=eta, verbose=True)
-    x0 = model.get_first_stage_encoding(model.encode_first_stage(x0))
     model.control_scales = ([strength] * 13)
+    x0_rand = torch.randn(batch, *shape).cuda()
 
     samples, _ = ddim_sampler.sample(S=ddim_steps, batch_size=batch, shape=shape, conditioning=cond,
-                                     eta=eta, x0=x0, mask=mask)
+                                     eta=eta, x0=x0_rand, mask=None)
     x_samples = model.decode_first_stage(samples)
 
     score, best_score, best_sample = 0, 1e4, None
     input_img_ori = input_img * 0.5 + 0.5
     for id, x_sample in enumerate(x_samples):
         x_sample = (x_sample + 1) / 2
-        x_sample = x_sample.flip(0)
+        x_sample = x_sample.flip(0) # from RGB to BGR for saving
         score = abs(x_sample.mean() - input_img_ori.mean())
         if score < best_score:
             best_score = score
@@ -85,15 +75,15 @@ def run_sampler(
 @click.option('--hdr_ckpt', type=str, default='./ckpts/hdr-epoch=49-step=28450.ckpt')
 @click.option('--input_path', type=str, default='inputs')
 @click.option('--output_path', type=str, default='pano_hdr')
-@click.option('--batch_size', type=int, default=16)
+@click.option('--batch_size', type=int, default=10)
 @click.option('--pano_res', type=(int, int), default=(512, 256))
 @click.option('--sg_scale', type=float, default=1.0)
 @click.option('--ldm_config', type=str, default='./pano_gen/configs/cldm_v15_clip_asg_sg.yaml')
-@click.option('--ldm_ckpt', type=str, default='ckpts/control-epoch=4-step=47950.ckpt')
+@click.option('--ldm_ckpt', type=str, default='ckpts/control-epoch=9-step=47950.ckpt')
 @click.option('--mask_path', type=str, default='pano_gen/outpainting-mask.png')
 @click.option('--ldm_batch', type=int, default=4)  # Batch size for LDM inference, and select only the best one
 @click.option('--ddim_steps', type=int, default=50)  # 20 for fast inference, 50 for better quality
-@click.option('--eta', type=float, default=0.3)  # 0 ~ 1, higher for more diverse results
+@click.option('--eta', type=float, default=0.)  # 0 ~ 1, higher for more diverse results
 @click.option('--is_outpainting', type=bool, default=True)  # True for keeping the input image area
 def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
              input_path, output_path, batch_size, pano_res, sg_scale,
@@ -114,10 +104,8 @@ def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
 
     if task in ('stage2', 'stage3', 'full'):
         pano_ldm = create_model(ldm_config).cpu()
-        pano_ldm.load_state_dict(load_state_dict(ldm_ckpt))
+        pano_ldm.load_state_dict(load_state_dict(ldm_ckpt), strict=False)
         pano_ldm.eval()
-        in_mask = np.array(Image.open(mask_path).convert("L").resize(pano_res, resample=0)) / 255.0
-        in_mask = torch.from_numpy(in_mask).float().cuda()[..., None].permute(2, 0, 1)
     else:
         pano_ldm = None
 
@@ -133,8 +121,11 @@ def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
     dataloader = dataset.predict_dataloader()
 
     def norm(tensor):
-        tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())
-        return tensor * 2 - 1
+        if isinstance(tensor, torch.Tensor):
+            return tensor * 2 - 1
+        else:
+            tensor = torch.from_numpy(tensor).float().cuda()
+            return tensor * 2 - 1
 
     with torch.no_grad():
         for input_imgs, img_names in dataloader:
@@ -145,20 +136,28 @@ def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
             lum_masks_pers = id_net_pers.inference(input_imgs, img_names) if id_net_pers else None
 
             sg_panos = sg_net.inference(input_imgs * 2 - 1, lum_masks_pers, img_names) if sg_net else None
-
+            del lum_masks_pers
             if task in ('stage2', 'stage3', 'full'):  # TODO batch inference
                 ldr_panos = []
                 for input_img, asg_pano, sg_pano, img_name in zip(input_imgs, asg_panos, sg_panos, img_names):
                     input_img = input_img.permute(1, 2, 0).cpu().numpy()[..., ::-1]  # BGR to RGB
-                    in_pano = pers2pano(input_img, pano_res, vfov=90, rotation_ear=[0, 0, 0])
-                    in_pano = norm(torch.from_numpy(in_pano).float().cuda()).permute(2, 0, 1)
-                    in_asg = torch.concat((norm(asg_pano.flip(0)), 1 - in_mask), dim=0)  # asg_pano is BGR
-                    in_sg = torch.sum(sg_pano * lum_weight[0], dim=0, keepdim=True) - 1
+                    in_pano, _ = pers2pano(input_img, pano_res, vfov=90, rotation_ear=[0, 0, 0])
+                    _, in_mask = pers2pano(input_img, pano_res, vfov=88, rotation_ear=[0, 0, 0])
+                    in_mask[in_mask <= 0.5] = 0
+                    in_mask[in_mask > 0.5] = 1
+                    in_mask = torch.from_numpy(in_mask).float().cuda()[..., None].permute(2, 0, 1)
+                    in_pano = norm(in_pano).permute(2, 0, 1)
+                    in_asg = norm(asg_pano).flip(0) * (1 - in_mask) + in_pano * in_mask # asg from BGR to RGB
+                    in_asg = torch.concat((in_asg, 1 - in_mask), dim=0)
+                    in_sg = torch.sum(sg_pano * lum_weight[0], dim=0, keepdim=True)
+                    in_sg[in_sg < 1] = 0
+                    in_sg -= 1
                     input_img = cv.resize(input_img, (224, 224), interpolation=cv.INTER_AREA)
-                    input_img = norm(torch.from_numpy(input_img).float().cuda()).permute(2, 0, 1)
+                    input_img = norm(input_img).permute(2, 0, 1)
                     ldr_panos.append(run_sampler(model=pano_ldm, input_pano=in_pano, input_asg=in_asg, input_sg=in_sg,
-                                                 input_img=input_img, img_name=img_name, output_path=get_path('pano_ldm'), input_mask=in_mask,
-                                                 batch=ldm_batch, strength=1.0, ddim_steps=ddim_steps, eta=eta, is_outpainting=is_outpainting))
+                                                 input_img=input_img, img_name=img_name,
+                                                 output_path=get_path('pano_ldm'), batch=ldm_batch, strength=1.0, ddim_steps=ddim_steps, eta=eta))
+                del asg_panos
                 ldr_panos = torch.stack(ldr_panos)
 
             if task in ('stage3', 'full'):
@@ -168,6 +167,8 @@ def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
                 sg_panos = torch.log1p(sg_panos * sg_scale)
 
                 hdr_panos = hdr_net.inference(ldr_panos, sg_panos, lum_masks_pano, img_names) if hdr_net else None
+
+            torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
