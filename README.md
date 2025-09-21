@@ -8,37 +8,37 @@
 
 #### Differences from the original paper
 
-1. Upgrade LDM to Stable Diffusion 1.5, use input image instead of text prompt.
+1. Upgrade LDM to Stable Diffusion 1.5, using input images instead of text prompts.
 2. Replace Latent HDR Guidance with an equivalent substitution using ControlNet, with the aim of accelerating the fine-tuning process.
-3. Training epochs are changed to 40 for id_net, 50 for sg_net, 100 for asg_net, 50 for hdr_net, 5 for controlnet.
+3. Training epochs are changed to 40 for id_net, 50 for sg_net, 100 for asg_net, 50 for hdr_net, 10 for controlnet.
 
 ## Structure
 
 ```
 IllumiDiff/
-├── ckpts/ # Pre-trained model checkpoints
-├── lighting_est/ # including stage1 (id_net,sg_net,asg_net) and stage3 (hdr_net)
-│   ├── asg_fitting_fixed_ldr_adam_batch.py # fitting asg ground truth
-│   ├── sg_fitting_free_nadam.py # fitting sg ground truth
-│   ├── dataset.py # dataset for stage1 and stage3
-│   ├── dataset_processing.py # some dataset processing scripts, still on organization
-│   ├── models.py # model definitions for stage1 and stage3
-│   ├── modules.py # lightning modules for stage1 and stage3
-├── pano_gen/
-│   ├── cldm # controlnet core codes
-│   ├── configs # configuration files for model definition
-│   ├── ldm # ldm core codes
-│   ├── openai # CLIP model
-│   ├── dataset.py # dataset for ldm
-│   ├── pano_tools.py # some tools for panorama projection
-│   ├── tool_add_control.py # ckpt initialization
-│   ├── outpainting-mask.png # outpainting mask
-├── inference_lighting_est.py # inference script for stage1 and stage3
-├── inference_pano_gen.py # inference script for stage2
-├── pipeline_lighting_est.py # pipeline for lighting estimation (stage1 + stage3)
-├── pipeline_full.py # full pipeline for IllumiDiff (stage1 + stage2 + stage3)
-├── train_lighting_est.py # training script for stage1 and stage3
-├── train_pano_gen.py # training script for stage2
+├── ckpts/                        # Pre-trained model checkpoints
+├── lighting\_est/                 # Stage 1 (id\_net, sg\_net, asg\_net) & Stage 3 (hdr\_net)
+│   ├── asg\_fitting\_fixed\_ldr\_adam\_batch.py   # ASG ground truth fitting
+│   ├── sg\_fitting\_free\_nadam.py              # SG ground truth fitting
+│   ├── dataset.py                            # Dataset loader (Stage 1 & 3)
+│   ├── dataset\_processing.py                 # Dataset preprocessing scripts
+│   ├── models.py                             # Model definitions (Stage 1 & 3)
+│   ├── modules.py                            # Lightning modules (Stage 1 & 3)
+├── pano\_gen/                    # Stage 2: panorama generation
+│   ├── cldm/                                 # ControlNet core
+│   ├── configs/                              # Model configuration files
+│   ├── ldm/                                  # Latent Diffusion Model core
+│   ├── openai/                               # OpenAI CLIP model
+│   ├── dataset.py                            # Dataset loader (Stage 2)
+│   ├── pano\_tools.py                         # Panorama projection tools
+│   ├── tool\_add\_control.py                   # Checkpoint initialization
+│   ├── outpainting-mask.png                  # Outpainting mask
+├── inference\_lighting\_est.py     # Inference script (Stage 1 or 3)
+├── inference\_pano\_gen.py         # Inference script (Stage 2)
+├── pipeline\_lighting\_est.py      # Lighting estimation pipeline (Stage 1 or 3)
+├── pipeline\_full.py              # Full pipeline (Stage 1 & 2 & 3)
+├── train\_lighting\_est.py         # Training script (Stage 1 or 3)
+├── train\_pano\_gen.py             # Training script (Stage 2)
 ```
 
 ## TODO or not to do
@@ -46,7 +46,7 @@ IllumiDiff/
 - [ ] Config files for all networks.
 - [ ] Simplify LDM code.
 - [ ] Full dataset process script.
-- [ ] Training all stage together.
+- [ ] Training all stages together.
 
 ## Environment
 
@@ -64,19 +64,19 @@ You can download them from [OneDrive](https://1drv.ms/f/s!AteITnyFLzOYj6x_vV0lu5
 
 Unzip `clip-vit-base-patch32.zip` to `IllumiDiff/pano_gen/openai/clip-vit-base-patch32/`,
 
-put all ckpts to `IllumDiff/ckpts/`,
+put all ckpts into `IllumDiff/ckpts/`,
 
-`control_sd15_clip_asg_sg.ckpt` is required solely for training from scratch.
+`control_sd15_clip_asg_sg.ckpt` is required only when training from scratch.
 
 ## Inference
 
-Full pipeline inference, the input is single images:
+Full pipeline inference, where the input is a single image:
 
 ```bash
 python pipeline_full.py --input_path <path> --output_path <path>
 ```
 
-Stage 1 or Stage 3 only:
+Inference for Stage 1 or Stage 3 only:
 
 ```bash
 python pipeline_lighting_est.py --input_path <path> --input_pano_path <path> --output_path <path>
@@ -118,10 +118,10 @@ python train_pano_gen.py --ckpt_path <path> --config_path <path>
 
 ## Contact
 
-For questions please contact:  
+For questions, please contact:
 [syshen@whu.edu.cn](mailto:syshen@whu.edu.cn)
 
-## Renferences
+## References
 
 [ControlNet](https://github.com/lllyasviel/ControlNet)
 
@@ -139,3 +139,4 @@ For questions please contact:
   year={2025},
   publisher={IEEE}
 }
+
