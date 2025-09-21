@@ -49,13 +49,12 @@ class ControlLDMASGSGDataset(Dataset):
 
         img_image = np.array(Image.open(f'{self.img_path}/{img_name}.png').convert("RGB").resize((224, 224))) / 255.0
         img = torch.from_numpy(img_image).permute(2, 0, 1).float()
-        img = norm(img)
+        img = img ** random_lum
 
         pano_image = np.array(
             Image.open(f'{self.pano_path}/{img_name}.png').convert("RGB").resize((self.W, self.H))) / 255.0
-        pano = torch.from_numpy(pano_image).float()
-        pano = pano ** random_lum  # random adjust the brightness
-        pano = norm(pano)
+        pano_image = torch.from_numpy(pano_image).float()
+        pano = pano_image ** random_lum  # random adjust the brightness
 
         sg_image = cv.imread(f'{self.sg_path}/{img_name}.exr', cv.IMREAD_UNCHANGED)
         sg_image = cv.resize(sg_image, (self.W, self.H))
@@ -70,9 +69,9 @@ class ControlLDMASGSGDataset(Dataset):
         asg_path = self.asg_path if random_int < 30 else self.asg_pre_path
         asg_image = np.array(Image.open(f'{asg_path}/{img_name}.jpg').convert("RGB").resize((self.W, self.H))) / 255.0
         asg = torch.from_numpy(asg_image).float()
+        asg = asg * self.mask + pano_image * (1 - self.mask)
         asg = asg ** random_lum  # random adjust the brightness
         asg = self.blur(asg.permute(2, 0, 1)).permute(1, 2, 0) if random_int < 30 else asg
-        asg = norm(asg)
         asg = torch.concat((asg, self.mask), dim=-1)
 
         img = img * 2 - 1
