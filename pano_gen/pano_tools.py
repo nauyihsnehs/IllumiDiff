@@ -1,6 +1,8 @@
 import os
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+import pathlib
+from tqdm import tqdm
 import numpy as np
 import cv2 as cv
 from scipy.spatial.transform import Rotation as R
@@ -107,7 +109,7 @@ def pers2pano(pers, pano_shape, vfov, rotation_ear, order=1):
     pano_out = np.zeros((H_pan, W_pan, C), dtype=pers.dtype)
     pano_out[i_flat, j_flat] = pers_flat
     pano_out = rotate(pano_out, *rotation_ear, order=order)
-    return pano_out
+    return pano_out, mask
 
 
 def warping(pano, nadir=0.7, order=1):
@@ -125,7 +127,7 @@ if __name__ == '__main__':
         pano_shape = (1024, 2048, 3)
         vfov = 60
         rotation_ear = [np.pi / 8, np.pi / 6, 0]
-        pano = pers2pano(pers, pano_shape, vfov, rotation_ear)
+        pano, _ = pers2pano(pers, pano_shape, vfov, rotation_ear)
         cv.imwrite('pers2pano_test.exr', pano.astype(np.float32), exr_save_params)
         exit(0)
 
@@ -166,7 +168,7 @@ if __name__ == '__main__':
         for vfov in [60, 65, 70, 75, 80, 90]:
             for nadir in [0, -0.5, -0.6, -0.7, -0.8, -0.9]:
                 print(f'Processing FOV: {vfov}')
-                pano = pers2pano(pers, pano_shape, vfov, [0, 0, 0])
+                pano, _ = pers2pano(pers, pano_shape, vfov, [0, 0, 0])
                 warped_pano = warping(pano, nadir=nadir)
                 warped_pano = np.clip(warped_pano ** (1 / 2.2), 0, 1) * 255
                 cv.imwrite(f'warp_fov_nadir_test/warped_pano_fov_{vfov}_nadir_{nadir}.jpg', warped_pano)
@@ -180,7 +182,7 @@ if __name__ == '__main__':
         pano_shape = (512, 1024, 3)
         for el in [-np.pi / 6, -np.pi / 8, 0, np.pi / 8, np.pi / 6]:
             for az in [-np.pi / 6, -np.pi / 8, 0, np.pi / 8, np.pi / 6]:
-                pano = pers2pano(pers, pano_shape, vfov, [el, az, 0])
+                pano, _ = pers2pano(pers, pano_shape, vfov, [el, az, 0])
                 warped_pano = warping(pano, nadir=nadir)
                 warped_pano = np.clip(warped_pano ** (1 / 2.2), 0, 1) * 255
                 cv.imwrite(f'warp_rotate_test/warped_pano_el_{round(el, 3)}_az_{round(az, 3)}.jpg', warped_pano)
@@ -191,3 +193,4 @@ if __name__ == '__main__':
     # pano_rotate_test()
     # warping_test()
     rotate_warping_test()
+
