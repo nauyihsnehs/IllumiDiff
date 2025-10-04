@@ -11,11 +11,10 @@ class DoubleConv(nn.Module):
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(mid_channels),
+            nn.GroupNorm(32, mid_channels),
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.GroupNorm(32, out_channels),
         )
 
     def forward(self, x):
@@ -50,7 +49,7 @@ class Up(nn.Module):
     def __init__(self, in_channels, out_channels, bilinear=True, conv_num=2):
         super().__init__()
         if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2) if conv_num == 2 else SingleConv(in_channels, out_channels)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
@@ -213,7 +212,7 @@ class ASGNet(nn.Module):
 
 
 class HDRNet(nn.Module):
-    def __init__(self, n_channels, n_classes):
+    def __init__(self, n_channels, n_classes, sg_channels=3):
         super(HDRNet, self).__init__()
 
         self.n_channels = n_channels
@@ -228,10 +227,15 @@ class HDRNet(nn.Module):
         self.up2 = (Up(1024, 128))
         self.up3 = (Up(256, 64))
         self.up4 = (Up(128, 64))
-        self.outc = (OutConv(64, n_classes))
+        self.outc = nn.Sequential(
+            nn.Conv2d(64, 32, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, n_classes, kernel_size=1),
+            nn.Softplus()
+        )
 
         self.sg_en = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.Conv2d(sg_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
@@ -243,7 +247,7 @@ class HDRNet(nn.Module):
             nn.Conv2d(1, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),
-            nn.Tanh(),
+            nn.Sigmoid(),
         )
 
     def forward(self, x, sg, mask):
@@ -261,5 +265,5 @@ class HDRNet(nn.Module):
         x = self.up3(x, x2)
         x = x * mask
         x = self.up4(x, x1)
-        logits = torch.abs(self.outc(x))
+        logits = self.outc(x)
         return logits
