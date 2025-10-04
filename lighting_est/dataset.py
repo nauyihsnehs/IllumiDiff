@@ -1,17 +1,17 @@
 import os
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+
+import random
 from pathlib import Path
 
 import numpy as np
-
-os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-
-import lightning as L
-from torch.utils.data import random_split, Dataset, DataLoader
-
-import torch
-from torchvision.transforms import GaussianBlur
-
 import cv2 as cv
+import torch
+from torch.utils.data import random_split, Dataset, DataLoader
+from torchvision.transforms import GaussianBlur
+import lightning as L
+
+from lighting_est.modules import IDNetModule
 
 exr_save_params = [cv.IMWRITE_EXR_TYPE, cv.IMWRITE_EXR_TYPE_HALF, cv.IMWRITE_EXR_COMPRESSION,
                    cv.IMWRITE_EXR_COMPRESSION_PIZ]
@@ -48,6 +48,8 @@ class SGNetDataset(Dataset):
         self.input_list = input_list if max_count is None else input_list[:max_count]
         self.rgb_path = rgb_path
         self.input_ls_path = input_ls_path
+        if self.input_ls_path is None:
+            self.id_net = IDNetModule.load_from_checkpoint('./ckpts/idnet-pers-e41-s10626-r256.ckpt')
         self.sg_path = sg_path
         self.env_path = env_path
         self.res = resolution
@@ -66,8 +68,7 @@ class SGNetDataset(Dataset):
 
         # inference
         if self.input_ls_path is None:
-            lum_img = np.sum(ldr_img * self.lum_weight, axis=-1, keepdims=True)
-            mask_img = torch.from_numpy(lum_img).float().permute(2, 0, 1)
+            mask_img = self.id_net.inference(ldr_img[None], is_save=False)[0]
         else:
             mask_path = [p.as_posix() for p in Path(self.input_ls_path).glob(f'*{img_name}.*')][0]
             mask_img = cv.imread(mask_path)
@@ -105,6 +106,8 @@ class SGNetDataModule(BaseDataModule):
         self.input_path = base_path + '/' + input_path
         if input_ls_path is not None:
             self.input_ls_path = base_path + '/' + input_ls_path
+        else:
+            self.input_ls_path = None
         if hdr_path is not None:
             self.hdr_path = base_path + '/' + hdr_path
             self.sg_path = base_path + '/' + sg_path
@@ -203,6 +206,7 @@ class HDRNetDataset(Dataset):
         self.input_list = input_list
         self.ldr_path = ldr_path
         self.sg_path = sg_path
+        self.sg_pre_path = sg_path + '_pre'
         self.ls_path = ls_path
         self.hdr_path = hdr_path
         self.res = resolution
@@ -217,15 +221,16 @@ class HDRNetDataset(Dataset):
         ldr_img_path = [p.as_posix() for p in Path(self.ldr_path).glob(f'*{img_name}.*')][0]
         ldr_img = cv.imread(ldr_img_path)
         ldr_img = cv.resize(ldr_img, self.res, interpolation=cv.INTER_AREA) / 255.
-        ldr_img = torch.from_numpy(ldr_img).float().permute(2, 0, 1)
+        ldr_img = torch.from_numpy(ldr_img).float().permute(2, 0, 1) * 2 - 1
 
         if self.ls_path is None: return ldr_img, img_name
 
         mask_img = cv.imread(f'{self.ls_path}/{img_name}.png')[..., 0]
         mask_img = cv.resize(mask_img, self.res, interpolation=cv.INTER_AREA) / 255.
-        mask_img = torch.from_numpy(mask_img).float()[None]
+        mask_img = torch.from_numpy(mask_img).float()[None] * 2 - 1
 
-        sg_img = cv.imread(f'{self.sg_path}/{img_name}.exr', cv.IMREAD_UNCHANGED)
+        sg_path = self.sg_path if random.randint(0, 100) < 50 else self.sg_pre_path
+        sg_img = cv.imread(f'{sg_path}/{img_name}.exr', cv.IMREAD_UNCHANGED)
         sg_img = cv.resize(sg_img, self.res, interpolation=cv.INTER_AREA)
         sg_img = np.nan_to_num(sg_img, nan=0.0)
         sg_lum = np.sum(sg_img * self.lum_weight, axis=-1, keepdims=True).repeat(3, -1)
@@ -238,8 +243,8 @@ class HDRNetDataset(Dataset):
         hdr_gt = cv.imread(f'{self.hdr_path}/{img_name}.exr', cv.IMREAD_UNCHANGED)
         hdr_gt = cv.resize(hdr_gt, self.res, interpolation=cv.INTER_AREA)
         hdr_gt = np.nan_to_num(hdr_gt, nan=0.0)
-        hdr_gt = np.log1p(hdr_gt)
-        hdr_gt = torch.from_numpy(hdr_gt).float().permute(2, 0, 1)
+        sg_img = np.sum(sg_img * self.lum_weight, axis=-1, keepdims=True)
+        sg_img = torch.from_numpy(sg_img).float().permute(2, 0, 1) - 1
 
         return ldr_img, sg_img, mask_img, hdr_gt, img_name  # hdr_gt_mask
 
