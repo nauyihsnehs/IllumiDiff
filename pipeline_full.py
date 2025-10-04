@@ -21,13 +21,14 @@ from pano_gen.cldm.model import create_model, load_state_dict
 
 
 def run_sampler(
-        model, input_pano, input_asg, input_sg, input_img,
-        img_name, output_path, batch=4, strength=1.0, ddim_steps=50, eta=0.3
+        model, input_asg, input_sg, input_img,
+        img_name, output_path, batch=4, strength=1.0, ddim_steps=50, eta=0.3,
+        select_best=True
 ):
     model = model.cuda()
     ddim_sampler = DDIMSampler(model)
 
-    C, H, W = input_pano.shape
+    C, H, W = input_asg.shape
 
     control = torch.stack([input_asg for _ in range(batch)], dim=0)
     control_hdr = torch.stack([input_sg for _ in range(batch)], dim=0)
@@ -45,11 +46,13 @@ def run_sampler(
                                      eta=eta, x0=x0_rand, mask=None)
     x_samples = model.decode_first_stage(samples)
 
-    score, best_score, best_sample = 0, 1e4, None
     input_img_ori = input_img * 0.5 + 0.5
+    x_samples = (x_samples + 1) / 2
+    x_samples = x_samples.flip(1)
+
+    score, best_score, best_sample = 0, 1e4, None
+
     for id, x_sample in enumerate(x_samples):
-        x_sample = (x_sample + 1) / 2
-        x_sample = x_sample.flip(0) # from RGB to BGR for saving
         score = abs(x_sample.mean() - input_img_ori.mean())
         if score < best_score:
             best_score = score
@@ -58,7 +61,10 @@ def run_sampler(
         cv.imwrite(f'{output_path}/{img_name}_{str(id).zfill(2)}.jpg', ldr)
         print(f'pano_ldm inference: {img_name}, id: {str(id).zfill(2)}, score: {score.item()}')
 
-    return best_sample
+    if select_best:
+        return best_sample
+    else:
+        return x_samples
 
 
 @click.command()
@@ -76,14 +82,15 @@ def run_sampler(
 @click.option('--sg_scale', type=float, default=1.0)
 @click.option('--ldm_config', type=str, default='./pano_gen/configs/cldm_v15_clip_asg_sg.yaml')
 @click.option('--ldm_ckpt', type=str, default='ckpts/control-epoch=9-step=47950.ckpt')
-@click.option('--mask_path', type=str, default='pano_gen/outpainting-mask.png')
+# @click.option('--mask_path', type=str, default='pano_gen/outpainting-mask.png')
 @click.option('--ldm_batch', type=int, default=4)  # Batch size for LDM inference, and select only the best one
 @click.option('--ddim_steps', type=int, default=50)  # 20 for fast inference, 50 for better quality
 @click.option('--eta', type=float, default=0.)  # 0 ~ 1, higher for more diverse results
-@click.option('--is_outpainting', type=bool, default=True)  # True for keeping the input image area
+# @click.option('--is_outpainting', type=bool, default=True)  # True for keeping the input image area
+@click.option('--select_best', type=bool, default=False)  # Select the best result from ldm_batch results
 def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
              input_path, output_path, batch_size, pano_res, sg_scale,
-             ldm_config, ldm_ckpt, mask_path, ldm_batch, ddim_steps, eta, seed, is_outpainting):
+             ldm_config, ldm_ckpt, ldm_batch, ddim_steps, eta, seed, select_best):
     if seed >= 0: seed_everything(seed)
 
     def get_path(stage):
@@ -145,24 +152,31 @@ def pipeline(task, id_ckpt, id2_ckpt, sg_ckpt, asg_ckpt, hdr_ckpt,
                     in_pano = norm(in_pano).permute(2, 0, 1)
                     in_asg = norm(asg_pano).flip(0) * (1 - in_mask) + in_pano * in_mask # asg from BGR to RGB
                     in_asg = torch.concat((in_asg, 1 - in_mask), dim=0)
-                    in_sg = torch.sum(sg_pano * lum_weight[0], dim=0, keepdim=True)
-                    in_sg[in_sg < 1] = 0
-                    in_sg -= 1
+                    in_sg = torch.sum(sg_pano * lum_weight[0], dim=0, keepdim=True) - 1
                     input_img = cv.resize(input_img, (224, 224), interpolation=cv.INTER_AREA)
                     input_img = norm(input_img).permute(2, 0, 1)
-                    ldr_panos.append(run_sampler(model=pano_ldm, input_pano=in_pano, input_asg=in_asg, input_sg=in_sg,
+                    ldr_panos.append(run_sampler(model=pano_ldm, input_asg=in_asg, input_sg=in_sg,
                                                  input_img=input_img, img_name=img_name,
-                                                 output_path=get_path('pano_ldm'), batch=ldm_batch, strength=1.0, ddim_steps=ddim_steps, eta=eta))
+                                                 output_path=get_path('pano_ldm'), batch=ldm_batch, strength=1.0,
+                                                 ddim_steps=ddim_steps, eta=eta,
+                                                 select_best=select_best))
                 del asg_panos
                 ldr_panos = torch.stack(ldr_panos)
 
             if task in ('stage3', 'full'):
-                lum_masks_pano = id_net_pano.inference(ldr_panos, img_names) if id_net_pano else None
-                sg_lum = torch.sum(sg_panos * lum_weight, dim=1, keepdim=True).repeat(1, 3, 1, 1)
-                sg_panos[sg_lum < 1] = 0.
-                sg_panos = torch.log1p(sg_panos * sg_scale)
-
-                hdr_panos = hdr_net.inference(ldr_panos, sg_panos, lum_masks_pano, img_names) if hdr_net else None
+                if select_best:
+                    lum_masks_pano = id_net_pano.inference(ldr_panos, img_names) if id_net_pano else None
+                    sg_panos = torch.sum(sg_panos * lum_weight, dim=1, keepdim=True) - 1
+                    hdr_panos = hdr_net.inference(ldr_panos * 2 - 1, sg_panos * sg_scale, lum_masks_pano * 2 - 1,
+                                                  img_names) if hdr_net else None
+                else:
+                    img_names = [[f'{img_name}_{str(id).zfill(2)}' for img_name in img_names] for id in range(ldm_batch)]
+                    for i in range(ldm_batch):
+                        lum_masks_pano = id_net_pano.inference(ldr_panos[:, i], img_names[i]) if id_net_pano else None
+                        sg_panos = torch.sum(sg_panos * lum_weight, dim=1, keepdim=True) - 1
+                        hdr_panos = hdr_net.inference(ldr_panos[:, i] * 2 - 1, sg_panos * sg_scale,
+                                                      lum_masks_pano * 2 - 1,
+                                                      img_names[i]) if hdr_net else None
 
             torch.cuda.empty_cache()
 
