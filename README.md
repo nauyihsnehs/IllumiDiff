@@ -10,35 +10,35 @@
 
 1. Upgrade LDM to Stable Diffusion 1.5, using input images instead of text prompts.
 2. Replace Latent HDR Guidance with an equivalent substitution using ControlNet, with the aim of accelerating the fine-tuning process.
-3. Training epochs are changed to 40 for id_net, 50 for sg_net, 100 for asg_net, 50 for hdr_net, 10 for controlnet.
+3. (2025-10-04) Add the pre-trained model for outdoor (trained on Poly Haven and Laval Outdoor).
 
 ## Structure
 
 ```
 IllumiDiff/
 ├── ckpts/                        # Pre-trained model checkpoints
-├── lighting\_est/                 # Stage 1 (id\_net, sg\_net, asg\_net) & Stage 3 (hdr\_net)
-│   ├── asg\_fitting\_fixed\_ldr\_adam\_batch.py   # ASG ground truth fitting
-│   ├── sg\_fitting\_free\_nadam.py              # SG ground truth fitting
+├── lighting_est/                 # Stage 1 (id_net, sg_net, asg_net) & Stage 3 (hdr_net)
+│   ├── asg_fitting_fixed_ldr_adam_batch.py   # ASG ground truth fitting
+│   ├── sg_fitting_free_nadam.py              # SG ground truth fitting
 │   ├── dataset.py                            # Dataset loader (Stage 1 & 3)
-│   ├── dataset\_processing.py                 # Dataset preprocessing scripts
+│   ├── dataset_processing.py                 # Dataset preprocessing scripts
 │   ├── models.py                             # Model definitions (Stage 1 & 3)
 │   ├── modules.py                            # Lightning modules (Stage 1 & 3)
-├── pano\_gen/                    # Stage 2: panorama generation
+├── pano_gen/                    # Stage 2: panorama generation
 │   ├── cldm/                                 # ControlNet core
 │   ├── configs/                              # Model configuration files
 │   ├── ldm/                                  # Latent Diffusion Model core
 │   ├── openai/                               # OpenAI CLIP model
 │   ├── dataset.py                            # Dataset loader (Stage 2)
-│   ├── pano\_tools.py                         # Panorama projection tools
-│   ├── tool\_add\_control.py                   # Checkpoint initialization
+│   ├── pano_tools.py                         # Panorama projection tools
+│   ├── tool_add_control.py                   # Checkpoint initialization
 │   ├── outpainting-mask.png                  # Outpainting mask
-├── inference\_lighting\_est.py     # Inference script (Stage 1 or 3)
-├── inference\_pano\_gen.py         # Inference script (Stage 2)
-├── pipeline\_lighting\_est.py      # Lighting estimation pipeline (Stage 1 or 3)
-├── pipeline\_full.py              # Full pipeline (Stage 1 & 2 & 3)
-├── train\_lighting\_est.py         # Training script (Stage 1 or 3)
-├── train\_pano\_gen.py             # Training script (Stage 2)
+├── inference_lighting_est.py     # Inference script (Stage 1 or 3)
+├── inference_pano_gen.py         # Inference script (Stage 2)
+├── pipeline_lighting_est.py      # Lighting estimation pipeline (Stage 1 or 3)
+├── pipeline_full.py              # Full pipeline (Stage 1 & 2 & 3)
+├── train_lighting_est.py         # Training script (Stage 1 or 3)
+├── train_pano_gen.py             # Training script (Stage 2)
 ```
 
 ## TODO or not to do
@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 ## Checkpoints
 
-You can download them from [OneDrive](https://1drv.ms/f/s!AteITnyFLzOYj6x_vV0lu5uhoTVjJQ?e=YJViCX).
+You can download them from [OneDrive](https://1drv.ms/f/s!AteITnyFLzOYj6x_vV0lu5uhoTVjJQ?e=YJViCX). (2025-10-04 Update on outdoor)
 
 Unzip `clip-vit-base-patch32.zip` to `IllumiDiff/pano_gen/openai/clip-vit-base-patch32/`,
 
@@ -139,4 +139,5 @@ For questions, please contact:
   year={2025},
   publisher={IEEE}
 }
+
 
