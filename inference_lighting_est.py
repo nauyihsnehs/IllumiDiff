@@ -20,13 +20,13 @@ from lighting_est.modules import HDRNetModule, SGNetModule, ASGNetModule, IDNetM
 @click.option('--base_path', type=str, default='./illumidiff_dataset')
 @click.option('--input_path', type=str, default='input_256')
 @click.option('--input_ls_path', type=str, default='input_ls_256')  # sg_net only
-@click.option('--input_asg_path', type=str, default='input_asg_256')  # asg_net only
+# @click.option('--input_asg_path', type=str, default='input_asg_256')  # asg_net only
 @click.option('--input_sg_path', type=str, default='sg_hdr')  # hdr_net only
 @click.option('--input_pano_path', type=str, default='pano_ldr_512')  # hdr_net only
 @click.option('--input_pano_ls_path', type=str, default='pano_ls_512')  # hdr_net only
 @click.option('--sg_scale', type=float, default=1.0)  # hdr_net only
 def predict(task, gpus, img_log_dir, ckpt_path, batch_size, lr, res, max_count,
-            base_path, input_path, input_ls_path, input_asg_path,
+            base_path, input_path, input_ls_path, #input_asg_path,
             input_sg_path, input_pano_path, input_pano_ls_path, sg_scale):
     img_log_dir = img_log_dir + f'/{task}_log'
     os.makedirs(img_log_dir, exist_ok=True)
@@ -37,8 +37,8 @@ def predict(task, gpus, img_log_dir, ckpt_path, batch_size, lr, res, max_count,
         model = SGNetModule(img_log_dir=img_log_dir, resolution=res, learning_rate=lr)
         dataset = SGNetDataModule(base_path, input_path, input_ls_path=input_ls_path, resolution=res, batch_size=batch_size, max_count=max_count)
     elif task == 'asg_net':
-        model = ASGNetModule(img_log_dir=img_log_dir, learning_rate=lr)
-        dataset = ASGNetDataModule(base_path, input_asg_path, resolution=res, batch_size=batch_size, max_count=max_count)
+        model = ASGNetModule(img_log_dir=img_log_dir, resolution=res, learning_rate=lr)
+        dataset = ASGNetDataModule(base_path, input_path, resolution=res, batch_size=batch_size, max_count=max_count)
     elif task == 'id_net':
         model = IDNetModule(img_log_dir=img_log_dir, learning_rate=lr)
         dataset = IDNetDataModule(base_path, input_path, resolution=res, batch_size=batch_size)
