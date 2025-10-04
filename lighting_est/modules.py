@@ -140,14 +140,13 @@ class HDRNetModule(BaseModule):
     def __init__(self, img_log_dir=None, learning_rate=1e-4):
         super().__init__()
         self.img_log_dir = img_log_dir
-        self.model = HDRNet(4, 3)
+        self.model = HDRNet(4, 3, sg_channels=1)
 
         self.learning_rate = learning_rate
         self.save_hyperparameters()
-        # self.example_input_array = torch.Tensor(1, 6, 240, 320)
         self.example_input_array = [
             [torch.Tensor(1, 3, 256, 512),
-             torch.Tensor(1, 3, 256, 512),
+             torch.Tensor(1, 1, 256, 512),  # sg_img
              torch.Tensor(1, 1, 256, 512),
              torch.Tensor(1, 3, 256, 512),
              'name'], 0, 'inference', 100
@@ -160,7 +159,7 @@ class HDRNetModule(BaseModule):
         save_idx = np.random.randint(0, idx_max)
         hdr_save = torch.expm1(hdr_pre[save_idx]).detach().cpu().permute(1, 2, 0).numpy()
         hdr_gt_save = torch.expm1(hdr_gt[save_idx]).detach().cpu().permute(1, 2, 0).numpy()
-        sg_img = torch.expm1(sg_img[save_idx]).detach().cpu().permute(1, 2, 0).numpy()
+        sg_img = sg_img[save_idx].detach().cpu().permute(1, 2, 0).numpy().repeat(3, axis=-1) + 1
         mask_img = mask_img[save_idx].detach().cpu().permute(1, 2, 0).numpy().repeat(3, axis=-1)
         grid0 = np.concatenate((hdr_save, hdr_gt_save), axis=0)
         grid1 = np.concatenate((sg_img, mask_img), axis=0)
