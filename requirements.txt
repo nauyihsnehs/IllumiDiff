@@ -1,13 +1,7 @@
-opencv-python
-pillow
-imageio
-imageio-ffmpeg
-omegaconf
-einops
-transformers==4.19.2
-open_clip_torch
-timm
-safetensors
+lightning
+opencv-python < 5
 click
-tqdm
 scipy
+einops
+tensorboard
+tqdm

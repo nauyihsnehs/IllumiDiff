@@ -1,0 +1,58 @@
+[model]
+config_path = "pano_ldm.toml"
+hdr_vae_ckpt_path = "kl-f8-1ch-40k.ckpt"
+learning_rate = 0.00001
+ema = true
+warmup_start = 0.00000033
+warmup_steps = 5000
+constant_steps = 15000
+decay_target = 0.0000033
+decay_steps = 30000
+cond_lr_scale = 3
+hdr_lr_scale = 6
+require_init_ckpt = true
+
+[batch]
+global_batch_size = 96
+max_batch_size_per_device = 24
+
+[dataset]
+data_root = "<dataset_root>/trainset"
+input_path = "pers_ldr_512"
+pano_path = "pano_ldr_1024"
+sg_path = "sg_npy"
+sg_pre_path = "sg_npy_pre"
+asg_pre_image_path = "asg_png_pre"
+use_pre_asg = true
+scene = "all"
+res = [256, 256]
+projection_vfov = 50
+
+[dataloader]
+num_workers = 8
+shuffle = true
+persistent_workers = true
+pin_memory = true
+
+[image_logger]
+batch_frequency = 500
+
+[logging]
+save_dir = "logs"
+name = "pano_ldm_vq4_inpainting_all"
+
+[wild_logger]
+root_path = "<dataset_root>/val-in-the-wild"
+batch_frequency = 500
+seed = 3407
+ddim_steps = 50
+
+[checkpoint]
+every_n_train_steps = 5000
+save_last = true
+save_top_k = -1
+
+[trainer]
+precision = "16-mixed"
+strategy = "auto"
+max_steps = 75000

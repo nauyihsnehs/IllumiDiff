@@ -1,0 +1,31 @@
+task = "id_net"
+log_root = "logs"
+
+[batch]
+global_batch_size = 16
+max_batch_size_per_device = 4
+
+[model]
+learning_rate = 0.001
+lr_decay_steps = 50000
+
+[dataset]
+hdr_path = "<dataset_root>/trainset/pers_hdr_512"
+resolution = 512
+
+[dataloader]
+num_workers = 4
+
+[logging]
+image_frequency = 500
+
+[wild]
+seed = 3407
+frequency = 500
+
+[checkpoint]
+every_n_train_steps = 5000
+
+[trainer]
+max_steps = 100000
+val_check_interval = 1000

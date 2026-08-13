@@ -1,0 +1,48 @@
+[diffusion]
+timesteps = 1000
+linear_start = 0.0015
+linear_end = 0.0205
+log_every_t = 100
+scale_factor = 1.0
+scale_by_std = false
+loss_type = "l2"
+fused_optimizer = true
+non_blocking_transfer = true
+hdr_scale_factor = 0.18215
+
+[unet]
+model_channels = 256
+attention_resolutions = [2, 4, 8]
+num_res_blocks = 2
+channel_mult = [1, 2, 3, 4]
+num_heads = 8
+dropout = 0.0
+use_scale_shift_norm = false
+resblock_updown = true
+use_checkpoint = false
+use_sdpa = true
+hdr_guidance_scale = 0.05
+
+[autoencoder]
+type = "vq"
+double_z = false
+attn_type = "none"
+resolution = 256
+z_channels = 3
+embed_dim = 3
+n_embed = 8192
+ch = 128
+ch_mult = [1, 2, 4]
+num_res_blocks = 2
+dropout = 0.0
+
+[hdr_autoencoder]
+type = "kl"
+double_z = true
+resolution = 256
+z_channels = 4
+embed_dim = 4
+ch = 128
+ch_mult = [1, 2, 4, 4]
+num_res_blocks = 2
+dropout = 0.0

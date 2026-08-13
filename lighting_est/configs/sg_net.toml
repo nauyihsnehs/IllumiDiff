@@ -1,0 +1,37 @@
+task = "sg_net"
+log_root = "logs"
+
+[batch]
+global_batch_size = 64
+max_batch_size_per_device = 64
+
+[model]
+resolution = [256, 128]
+learning_rate = 0.001
+lr_decay_steps = 50000
+backbone_weights = "DEFAULT"
+pano_loss_weight = 0.0
+
+[dataset]
+base_path = "<dataset_root>/trainset"
+input_path = "pers_ldr_512"
+input_ls_path = "inputs_ls"
+sg_path = "sg_npy"
+resolution = [256, 128]
+
+[dataloader]
+num_workers = 4
+
+[logging]
+image_frequency = 500
+
+[wild]
+seed = 3407
+frequency = 500
+
+[checkpoint]
+every_n_train_steps = 5000
+
+[trainer]
+max_steps = 100000
+val_check_interval = 1000

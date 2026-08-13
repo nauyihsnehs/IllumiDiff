@@ -1,0 +1,40 @@
+[model]
+init_ckpt = "kl-f8.ckpt"
+learning_rate = 0.00001
+kl_weight = 0.000001
+
+[batch]
+global_batch_size = 32
+max_batch_size_per_device = 4
+
+[dataset]
+data_root = "<dataset_root>/trainset"
+sg_path = "sg_npy"
+size = 512
+# Zero keeps the complete dataset.
+max_count = 0
+rotate = false
+flip = false
+
+[dataloader]
+num_workers = 8
+shuffle = true
+persistent_workers = true
+pin_memory = true
+
+[logging]
+save_dir = "logs"
+image_frequency = 500
+max_images = 4
+
+[checkpoint]
+filename = "{epoch:06}-{step:08}"
+every_n_train_steps = 5000
+save_last = true
+save_top_k = -1
+
+[trainer]
+max_steps = 100000
+
+[export]
+path = "logs/vae_1ch_sg/vae_1ch_last.ckpt"

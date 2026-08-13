@@ -1,0 +1,41 @@
+task = "hdr_net"
+log_root = "logs"
+
+[batch]
+global_batch_size = 32
+max_batch_size_per_device = 16
+
+[model]
+learning_rate = 1e-5
+sg_scale = 1.0
+exposure_loss_weight = 0.1
+perceptual_loss_weight = 0.0
+gradient_loss_weight = 0.05
+highlight_weight = 2.0
+highlight_loss_weight = 0.1
+max_hdr = 3e4
+
+[dataset]
+base_path = "<dataset_root>/trainset"
+sg_path = "sg_npy"
+ls_path = "pano_ls"
+hdr_path = "pano_hdr_1024"
+resolution = [512, 256]
+
+[dataloader]
+num_workers = 4
+
+[logging]
+image_frequency = 500
+
+[wild]
+wild_path = "<dataset_root>/val-in-the-wild"
+seed = 3407
+frequency = 500
+
+[checkpoint]
+every_n_train_steps = 5000
+
+[trainer]
+max_epochs = 20
+val_check_interval = 1000
