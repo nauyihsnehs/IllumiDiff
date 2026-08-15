@@ -72,7 +72,7 @@ python inference_single.py --input-path <path> --output-path <path>
 
 | Metric     |                          IllumiDiff |              DiffusionLight |                  LuxDiT |
 |:-----------|------------------------------------:|----------------------------:|------------------------:|
-| Base moel  |                                 LDM |                        SDXL |                CogVideo |
+| Base model |                                 LDM |                        SDXL |                CogVideo |
 | Parameters |                          ~ **0.7**B |                      ~ 3.5B |                    ~ 5B |
 | SI-RMSE    | **0.103** \| **0.185** \| **0.206** |     0.123 \| 0.216 \| 0.239 | 0.114 \| 0.211 \| 0.231 |
 | PSNR       | **17.43** \| **13.99** \| **12.62** |     15.54 \| 12.84 \| 11.72 | 16.70 \| 12.95 \| 12.02 |
@@ -114,7 +114,7 @@ python -m pano_ldm.train --config pano_ldm/configs/train.toml --init-ckpt <init-
 
 ## Acknowledgements
 
-This project builds on ideas and components from [LDM](https://github.com/CompVis/latent-diffusion)) and [Skylibs](https://github.com/soravux/skylibs).
+This project builds on ideas and components from [LDM](https://github.com/CompVis/latent-diffusion) and [Skylibs](https://github.com/soravux/skylibs).
 
 ## Citation
 
